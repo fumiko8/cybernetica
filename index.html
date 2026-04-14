@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Робот против Амиго — Погоня за флешкой</title>
+    <style>
+        * {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #0a0f1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Основной контейнер */
+        .game-container {
+            background: #000;
+            box-shadow: 0 0 0 4px #5f7f9f, 0 0 0 8px #2a3a4a;
+            display: inline-block;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            cursor: pointer;
+        }
+
+        /* Панель состояния */
+        .info-panel {
+            background: #1a2a2a;
+            color: #0f0;
+            padding: 8px 16px;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #5f7f9f;
+            font-family: monospace;
+        }
+
+        .charge-bar-bg {
+            background: #333;
+            width: 200px;
+            height: 18px;
+            border: 1px solid #0f0;
+            margin-left: 15px;
+        }
+
+        .charge-bar-fill {
+            background: #0f0;
+            width: 100%;
+            height: 100%;
+            transition: width 0.05s linear;
+        }
+
+        .controls {
+            background: #0f1a1a;
+            color: #8bc;
+            padding: 6px;
+            font-size: 12px;
+            text-align: center;
+            border-top: 1px solid #2f4f4f;
+        }
+
+        button {
+            background: #2a4a3a;
+            border: none;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 4px 12px;
+            margin: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #3e6b55;
+        }
+
+        .win-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: black;
+            border: 4px solid gold;
+            color: gold;
+            padding: 20px 30px;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+            z-index: 20;
+            font-family: monospace;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-container" id="gameRoot">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // -------- КОНФИГУРАЦИЯ: ЗАМЕНИ НАЗВАНИЯ СВОИХ КАРТИНОК --------
+        // Сюда впиши имена файлов от 1 до 7 в правильном порядке.
+        // Например: "comic1.png", "story_frame2.png" и т.д.
+        const COMIC_IMAGES = [
+            "comic1.png",   // страница 1
+            "comic2.png",   // страница 2
+            "comic3.png",   // страница 3
+            "comic4.png",   // страница 4
+            "comic5.png",   // страница 5
+            "comic6.png",   // страница 6
+            "comic7.png"    // страница 7
+        ];
+        // ------------------------------------------------------------
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Режимы: 'comic' или 'game'
+        let mode = 'comic';
+        let currentPage = 0;  // 0..6
+
+        // Флаг загрузки комикса
+        let comicImages = [];
+        let imagesLoaded = false;
+        let loadingError = false;
+
+        // ------ ИГРОВЫЕ ПЕРЕМЕННЫЕ ------
+        let gameRunning = false;
+        let gameWin = false;
+        
+        // Робот игрока (слева-снизу, но в центре карты)
+        let player = { x: 200, y: 450, width: 32, height: 32 };
+        let amigo = { x: 650, y: 150, width: 32, height: 32 };
+        
+        // Заряд: от 0 до 100
+        let charge = 100;
+        let isRecharging = false;
+        let rechargeTimer = null;
+        let nextRechargeScheduled = null;
+        
+        // Управление (клавиши)
+        const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, s: false, a: false, d: false };
+        
+        let animationId = null;
+        let lastTimestamp = 0;
+        
+        // Для замедления движения (пиксели в секунду ≈ 250)
+        let moveSpeed = 220; // пикселей в секунду
+        
+        // ---------- ЗАГРУЗКА КОМИКСА ----------
+        function loadComics() {
+            let loadedCount = 0;
+            comicImages = new Array(COMIC_IMAGES.length);
+            for (let i = 0; i < COMIC_IMAGES.length; i++) {
+                const img = new Image();
+                img.onload = () => {
+                    loadedCount++;
+                    if (loadedCount === COMIC_IMAGES.length) {
+                        imagesLoaded = true;
+                        console.log("Все картинки комикса загружены");
+                        draw(); // отрисовываем первый кадр
+                    }
+                };
+                img.onerror = () => {
+                    console.error(`❌ Не удалось загрузить: ${COMIC_IMAGES[i]}`);
+                    loadingError = true;
+                    imagesLoaded = false;
+                    draw(); // покажем текст ошибки
+                };
+                img.src = COMIC_IMAGES[i];
+                comicImages[i] = img;
+            }
+        }
+
+        // -------- ОТРИСОВКА КОМИКСА ---------
+        function drawComic() {
+            if (!imagesLoaded || loadingError) {
+                ctx.fillStyle = "#0a0f1e";
+                ctx.fillRect(0, 0, 800, 600);
+                ctx.fillStyle = "#ffaa88";
+                ctx.font = "18px monospace";
+                ctx.textAlign = "center";
+                if (loadingError) {
+                    ctx.fillText("Ошибка загрузки картинок комикса!", 400, 280);
+                    ctx.fillText("Проверь имена файлов в COMIC_IMAGES", 400, 320);
+                    ctx.fillText("(должны лежать рядом с index.html)", 400, 360);
+                } else {
+                    ctx.fillText("Загрузка комикса...", 400, 300);
+                }
+                return;
+            }
+            
+            const img = comicImages[currentPage];
+            if (img && img.complete && img.naturalWidth > 0) {
+                // Рисуем картинку с сохранением пропорций, вписывая в 800x600
+                const scale = Math.min(800 / img.width, 600 / img.height);
+                const w = img.width * scale;
+                const h = img.height * scale;
+                const x = (800 - w) / 2;
+                const y = (600 - h) / 2;
+                ctx.drawImage(img, x, y, w, h);
+            } else {
+                ctx.fillStyle = "#222";
+                ctx.fillRect(0, 0, 800, 600);
+                ctx.fillStyle = "white";
+                ctx.fillText(`Страница ${currentPage+1} (изображение не готово)`, 400, 300);
+            }
+            
+            // Стрелки навигации
+            ctx.fillStyle = "rgba(0,0,0,0.7)";
+            ctx.fillRect(0, 270, 50, 60);
+            ctx.fillRect(750, 270, 50, 60);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 32px monospace";
+            ctx.fillText("◀", 18, 320);
+            ctx.fillText("▶", 768, 320);
+            ctx.font = "14px monospace";
+            ctx.fillStyle = "#ccddff";
+            ctx.fillText(`${currentPage+1} / ${COMIC_IMAGES.length}`, 380, 580);
+            ctx.fillStyle = "yellow";
+            ctx.fillText("Нажми ПРОБЕЛ чтобы начать игру", 300, 40);
+        }
+        
+        // ---------- ИГРОВАЯ ЛОГИКА ----------
+        function startGameMode() {
+            if (mode === 'game') return;
+            mode = 'game';
+            gameRunning = true;
+            gameWin = false;
+            // сбросить позиции
+            player = { x: 200, y: 450, width: 32, height: 32 };
+            amigo = { x: 650, y: 150, width: 32, height: 32 };
+            charge = 100;
+            if (rechargeTimer) clearTimeout(rechargeTimer);
+            if (nextRechargeScheduled) clearTimeout(nextRechargeScheduled);
+            isRecharging = false;
+            
+            // Запускаем цикл подзарядки
+            scheduleRechargeCycle();
+            
+            // перерисовка
+            if (animationId) cancelAnimationFrame(animationId);
+            function gameLoop(now) {
+                if (mode === 'game') {
+                    updateGame(now);
+                    drawGame();
+                    animationId = requestAnimationFrame(gameLoop);
+                } else {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                    draw();
+                }
+            }
+            animationId = requestAnimationFrame(gameLoop);
+            drawGame();
+        }
+        
+        let lastFrameTime = 0;
+        function updateGame(now) {
+            if (!gameRunning || gameWin) return;
+            if (!lastFrameTime) { lastFrameTime = now; return; }
+            let delta = Math.min(0.033, (now - lastFrameTime) / 1000);
+            if (delta <= 0) return;
+            lastFrameTime = now;
+            
+            // Движение только если НЕ перезаряжается
+            let moveX = 0, moveY = 0;
+            if (!isRecharging) {
+                if (keys.ArrowUp || keys.w) moveY -= 1;
+                if (keys.ArrowDown || keys.s) moveY += 1;
+                if (keys.ArrowLeft || keys.a) moveX -= 1;
+                if (keys.ArrowRight || keys.d) moveX += 1;
+                
+                if (moveX !== 0 || moveY !== 0) {
+                    const len = Math.hypot(moveX, moveY);
+                    moveX /= len;
+                    moveY /= len;
+                    const step = moveSpeed * delta;
+                    let newX = player.x + moveX * step;
+                    let newY = player.y + moveY * step;
+                    // границы
+                    newX = Math.min(Math.max(newX, 8), 800 - player.width - 8);
+                    newY = Math.min(Math.max(newY, 8), 600 - player.height - 8);
+                    player.x = newX;
+                    player.y = newY;
+                }
+            }
+            
+            // Движение Амиго (убегает, но не слишком резво)
+            let dx = player.x - amigo.x;
+            let dy = player.y - amigo.y;
+            let dist = Math.hypot(dx, dy);
+            if (dist > 0.5 && !gameWin) {
+                let angle = Math.atan2(dy, dx);
+                let amigoStep = 100 * delta; // медленнее, чтобы можно было догнать
+                let newX = amigo.x + Math.cos(angle) * amigoStep;
+                let newY = amigo.y + Math.sin(angle) * amigoStep;
+                newX = Math.min(Math.max(newX, 8), 800 - amigo.width - 8);
+                newY = Math.min(Math.max(newY, 8), 600 - amigo.height - 8);
+                amigo.x = newX;
+                amigo.y = newY;
+            }
+            
+            // Проверка столкновения (победа)
+            if (!gameWin && 
+                player.x < amigo.x + amigo.width &&
+                player.x + player.width > amigo.x &&
+                player.y < amigo.y + amigo.height &&
+                player.y + player.height > amigo.y) {
+                gameWin = true;
+                gameRunning = false;
+                if (rechargeTimer) clearTimeout(rechargeTimer);
+                drawGame();
+                return;
+            }
+        }
+        
+        function scheduleRechargeCycle() {
+            if (!gameRunning || gameWin) return;
+            // каждые 3 секунды цикл зарядки (1 сек стоп)
+            if (nextRechargeScheduled) clearTimeout(nextRechargeScheduled);
+            nextRechargeScheduled = setTimeout(() => {
+                if (!gameRunning || gameWin) return;
+                // начало подзарядки
+                isRecharging = true;
+                if (rechargeTimer) clearTimeout(rechargeTimer);
+                // за 1 секунду восстанавливаем заряд с 0 до 100
+                const startCharge = charge;
+                const startTime = performance.now();
+                function rechargeStep(now) {
+                    if (!isRecharging) return;
+                    const elapsed = (now - startTime) / 1000;
+                    let newCharge = startCharge + (elapsed * 100);
+                    if (newCharge >= 100) {
+                        charge = 100;
+                        isRecharging = false;
+                        drawGame();
+                        scheduleRechargeCycle(); // следующий цикл через 3 сек
+                        return;
+                    }
+                    charge = newCharge;
+                    drawGame();
+                    requestAnimationFrame(rechargeStep);
+                }
+                requestAnimationFrame(rechargeStep);
+                
+                // Остановка движения на 1 секунду гарантирована через isRecharging
+                rechargeTimer = setTimeout(() => {
+                    if (isRecharging) {
+                        // если заряд всё ещё не достиг 100, принудительно
+                        charge = 100;
+                        isRecharging = false;
+                        drawGame();
+                        scheduleRechargeCycle();
+                    }
+                }, 1000);
+            }, 3000);
+        }
+        
+        function drawGame() {
+            ctx.clearRect(0, 0, 800, 600);
+            // Пиксельный город (простой фон)
+            ctx.fillStyle = "#2c3e2f";
+            ctx.fillRect(0, 0, 800, 600);
+            ctx.fillStyle = "#5a6e4a";
+            for(let i=0;i<20;i++) {
+                ctx.fillRect(i*70, 500, 35, 100);
+                ctx.fillRect(i*90+40, 440, 25, 160);
+            }
+            ctx.fillStyle = "#3a3f2a";
+            ctx.fillRect(0, 540, 800, 60);
+            // дорожка
+            ctx.fillStyle = "#5a5a3a";
+            for(let i=0;i<12;i++) ctx.fillRect(i*70, 570, 40, 8);
+            
+            // Рисуем роботов (пиксельно-квадратные)
+            // Игрок (синий)
+            ctx.fillStyle = "#3a86ff";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(player.x+8, player.y+6, 6, 6);
+            ctx.fillRect(player.x+18, player.y+6, 6, 6);
+            ctx.fillStyle = "#aaa";
+            ctx.fillRect(player.x+12, player.y+20, 8, 8);
+            
+            // Амиго (красный)
+            ctx.fillStyle = "#e63946";
+            ctx.fillRect(amigo.x, amigo.y, amigo.width, amigo.height);
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(amigo.x+8, amigo.y+6, 6, 6);
+            ctx.fillRect(amigo.x+18, amigo.y+6, 6, 6);
+            ctx.fillStyle = "#333";
+            ctx.fillRect(amigo.x+12, amigo.y+20, 8, 8);
+            ctx.fillStyle = "#ffff99";
+            ctx.font = "bold 14px monospace";
+            ctx.fillText("Амиго", amigo.x+4, amigo.y-4);
+            
+            // Полоска заряда
+            ctx.fillStyle = "#111";
+            ctx.fillRect(10, 10, 204, 24);
+            ctx.fillStyle = isRecharging ? "#ffaa44" : "#0f0";
+            ctx.fillRect(12, 12, Math.max(0, (charge/100)*200), 20);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 14px monospace";
+            ctx.fillText(`ЗАРЯД: ${Math.floor(charge)}%`, 15, 30);
+            if(isRecharging) {
+                ctx.fillStyle = "orange";
+                ctx.fillText("🔋 ПОДЗАРЯДКА... (СТОП)", 240, 28);
+            }
+            
+            // управление
+            ctx.fillStyle = "#ccc";
+            ctx.font = "12px monospace";
+            ctx.fillText("WASD / стрелки — движение", 620, 580);
+            
+            if(gameWin){
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(0,0,800,600);
+                ctx.fillStyle = "gold";
+                ctx.font = "bold 28px monospace";
+                ctx.fillText("🏆 ФЛЕШКА ВОЗВРАЩЕНА! 🏆", 220, 300);
+                ctx.font = "18px monospace";
+                ctx.fillStyle = "white";
+                ctx.fillText("Нажми F5 для перезапуска или перечитай комикс", 230, 380);
+            }
+        }
+        
+        // -------- ОБЩАЯ ОТРИСОВКА ---------
+        function draw() {
+            if (mode === 'comic') {
+                drawComic();
+            } else {
+                drawGame();
+            }
+        }
+        
+        // ---------- УПРАВЛЕНИЕ КЛАВИАТУРОЙ ----------
+        function handleKeyDown(e) {
+            const key = e.key;
+            if (mode === 'comic') {
+                if (key === 'ArrowLeft') {
+                    e.preventDefault();
+                    currentPage = Math.max(0, currentPage-1);
+                    draw();
+                } else if (key === 'ArrowRight') {
+                    e.preventDefault();
+                    currentPage = Math.min(COMIC_IMAGES.length-1, currentPage+1);
+                    draw();
+                } else if (key === ' ' || key === 'Space') {
+                    e.preventDefault();
+                    if (!gameWin) {
+                        if (animationId) cancelAnimationFrame(animationId);
+                        startGameMode();
+                    }
+                }
+                return;
+            }
+            
+            // Режим игры
+            if (mode === 'game' && !gameWin) {
+                if (keys.hasOwnProperty(key)) keys[key] = true;
+                if (key === 'w') keys.w = true;
+                if (key === 's') keys.s = true;
+                if (key === 'a') keys.a = true;
+                if (key === 'd') keys.d = true;
+                if (key === 'ArrowUp') keys.ArrowUp = true;
+                if (key === 'ArrowDown') keys.ArrowDown = true;
+                if (key === 'ArrowLeft') keys.ArrowLeft = true;
+                if (key === 'ArrowRight') keys.ArrowRight = true;
+                e.preventDefault();
+            }
+        }
+        
+        function handleKeyUp(e) {
+            const key = e.key;
+            if (mode === 'game') {
+                if (keys.hasOwnProperty(key)) keys[key] = false;
+                if (key === 'w') keys.w = false;
+                if (key === 's') keys.s = false;
+                if (key === 'a') keys.a = false;
+                if (key === 'd') keys.d = false;
+                if (key === 'ArrowUp') keys.ArrowUp = false;
+                if (key === 'ArrowDown') keys.ArrowDown = false;
+                if (key === 'ArrowLeft') keys.ArrowLeft = false;
+                if (key === 'ArrowRight') keys.ArrowRight = false;
+            }
+        }
+        
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        
+        // Старт загрузки и первый рендер
+        loadComics();
+        draw();
+        
+        // Инструкция по смене картинок в консоль
+        console.log("📘 Чтобы заменить картинки комикса: измени массив COMIC_IMAGES на свои 7 файлов .png");
+    })();
+</script>
+</body>
+</html>
