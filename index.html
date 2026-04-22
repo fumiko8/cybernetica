@@ -2,636 +2,660 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Among Us 2D Top-Down Бродилка</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, touch-action: none">
+    <title>B-52 против Амиго</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-
         body {
-            background: linear-gradient(145deg, #0a2f2a 0%, #05201c 100%);
+            margin: 0;
             min-height: 100vh;
+            background: #0a0a2a;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: 'Segoe UI', 'Press Start 2P', 'Courier New', monospace;
-            touch-action: none; /* для мобильных устройств */
+            font-family: 'Courier New', monospace;
+            touch-action: none;
         }
-
-        .game-container {
-            padding: 20px;
-            border-radius: 48px;
-            background: rgba(0, 0, 0, 0.3);
-            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.4);
-        }
-
         canvas {
             display: block;
             margin: 0 auto;
-            border-radius: 28px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
             cursor: none;
-            background-color: #1f3e3a;
+            touch-action: none;
         }
-
-        .info-panel {
+        #comic-container {
+            position: relative;
             display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-top: 18px;
-            margin-bottom: 8px;
-            background: #111c1aee;
-            backdrop-filter: blur(4px);
-            padding: 12px 24px;
-            border-radius: 60px;
-            color: #f5f9ff;
-            text-shadow: 2px 2px 0 #2d4a44;
-            font-weight: bold;
-        }
-
-        .score-box, .hint-box {
-            background: #00000066;
-            padding: 6px 18px;
-            border-radius: 32px;
-            font-size: 1.3rem;
-            letter-spacing: 1px;
-        }
-
-        .score-box span, .hint-box span {
-            color: #ffd966;
-            font-size: 1.7rem;
-            font-weight: bold;
-            margin-right: 8px;
-        }
-
-        .controls {
-            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
-            gap: 18px;
-            margin-top: 18px;
-            flex-wrap: wrap;
+            background: #000;
         }
-
+        #comic-img {
+            max-width: 100vw;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+        .comic-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+        }
         button {
-            background: #2c3e35;
-            border: none;
+            padding: 12px 24px;
+            font-size: 1.2rem;
+            background: #ff6600;
             color: white;
-            font-size: 1.8rem;
-            font-weight: bold;
-            padding: 8px 22px;
-            border-radius: 60px;
-            font-family: monospace;
+            border: none;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 0 #0f2a24;
-            transition: 0.07s linear;
-            backdrop-filter: blur(4px);
+            font-weight: bold;
+            touch-action: manipulation;
         }
-
         button:active {
-            transform: translateY(3px);
-            box-shadow: 0 1px 0 #0f2a24;
+            background: #cc5500;
         }
-
-        .mobile-stick {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            margin-top: 10px;
+        #start-game-btn {
+            margin-top: 20px;
+            background: #00aa44;
+            font-size: 1.5rem;
+            padding: 15px 40px;
         }
-
-        @media (max-width: 700px) {
-            .score-box, .hint-box { font-size: 0.9rem; padding: 4px 12px; }
-            .score-box span, .hint-box span { font-size: 1.3rem; }
-            button { font-size: 1.2rem; padding: 6px 14px; }
+        #message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: yellow;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            z-index: 200;
+            font-size: 1.2rem;
+            pointer-events: none;
+            text-align: center;
+            white-space: nowrap;
         }
-
-        .restart-btn {
-            background: #b3421d;
-            box-shadow: 0 4px 0 #632a10;
+        @media (max-width: 768px) {
+            #message { font-size: 1rem; white-space: normal; top: 10px; }
+            button { padding: 8px 16px; font-size: 1rem; }
         }
     </style>
 </head>
 <body>
-<div>
-    <div class="game-container">
-        <canvas id="gameCanvas" width="900" height="600"></canvas>
-        <div class="info-panel">
-            <div class="score-box"><span>🍩</span> Донаты: <span id="scoreValue">0</span></div>
-            <div class="hint-box"><span>🎮</span> WASD / стрелки | Собери 10 пончиков</div>
-        </div>
-        <div class="controls">
-            <button id="resetGameBtn" class="restart-btn">🔄 Новая игра</button>
-        </div>
-        <div class="mobile-stick" id="mobileControls" style="display: none;">
-            <button id="btnUp">▲ Вверх</button>
-            <button id="btnLeft">◀ Лев</button>
-            <button id="btnDown">▼ Вниз</button>
-            <button id="btnRight">Прав ▶</button>
-        </div>
+<div id="comic-container">
+    <img id="comic-img" src="comic1.png" alt="Comic" style="max-width: 100%; max-height: 80vh;">
+    <div class="comic-controls">
+        <button id="prev-btn" disabled>◀ Назад</button>
+        <button id="next-btn">Вперед ▶</button>
     </div>
+    <button id="start-game-btn" style="display:none;">⚡ Начать игру ⚡</button>
 </div>
+<canvas id="gameCanvas" width="1200" height="700" style="display:none; touch-action: none;"></canvas>
+<div id="message" style="display:none;"></div>
 
 <script>
     (function(){
-        // ---------- CANVAS ----------
+        // ---------------------- КОМИКС ----------------------
+        let currentPage = 1;
+        const totalComics = 7;
+        const comicImg = document.getElementById('comic-img');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const startBtn = document.getElementById('start-game-btn');
+        const comicContainer = document.getElementById('comic-container');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const messageDiv = document.getElementById('message');
 
-        // Размеры мира (топдаун камера следует за игроком, но мир фиксирован)
-        // Мир 2400x1800, камера 900x600 (центрируется на игроке)
-        const WORLD_WIDTH = 2400;
-        const WORLD_HEIGHT = 1800;
+        function updateComic() {
+            comicImg.src = `comic${currentPage}.png`;
+            prevBtn.disabled = currentPage === 1;
+            if (currentPage === totalComics) {
+                nextBtn.style.display = 'none';
+                startBtn.style.display = 'inline-block';
+            } else {
+                nextBtn.style.display = 'inline-block';
+                startBtn.style.display = 'none';
+            }
+        }
+        nextBtn.onclick = () => { if (currentPage < totalComics) { currentPage++; updateComic(); } };
+        prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; updateComic(); } };
         
-        // Игрок (Among As стиль - красный/синий комбинезон)
-        let player = {
-            x: WORLD_WIDTH/2,
-            y: WORLD_HEIGHT/2,
-            radius: 24,      // размер для коллизий
-            speed: 4.8,
-            angle: 0,        // угол поворота (для взгляда/задника)
-            color: "#D32F2F" // красный crewmate
+        startBtn.onclick = () => {
+            comicContainer.style.display = 'none';
+            canvas.style.display = 'block';
+            messageDiv.style.display = 'block';
+            initGame();
         };
+        updateComic();
+
+        // ---------------------- ИГРОВОЙ ДВИЖОК ----------------------
+        let game = null;
         
-        let donuts = [];      // массив пончиков {x, y, radius, collected}
-        let score = 0;
-        let gameRunning = true;
+        class Vec2 { constructor(x,y){ this.x=x; this.y=y; } }
         
-        // Враги (имитаторы - среди нас? простые препятствия - серые "импостеры")
-        let enemies = [];
-        
-        // Стены/границы - просто границы мира + несколько декоративных препятствий (колонны/оборудование)
-        let walls = [];
-        
-        // Управление
-        const keys = {
-            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
-            w: false, s: false, a: false, d: false
-        };
-        
-        // камера
-        let camera = { x: 0, y: 0 };
-        
-        // ---------- ИНИЦИАЛИЗАЦИЯ МИРА ----------
-        function initGame() {
-            // Сброс игрока
-            player.x = WORLD_WIDTH/2;
-            player.y = WORLD_HEIGHT/2;
-            player.speed = 4.8;
-            score = 0;
-            updateScoreUI();
-            gameRunning = true;
-            
-            // Генерация пончиков (20 штук)
-            donuts = [];
-            for(let i = 0; i < 22; i++) {
-                let placed = false;
-                let attempts = 0;
-                while(!placed && attempts < 80) {
-                    let randX = 60 + Math.random() * (WORLD_WIDTH - 120);
-                    let randY = 60 + Math.random() * (WORLD_HEIGHT - 120);
-                    // Не на игроке и не слишком близко к врагам/стенам - но упростим
-                    let distToPlayer = Math.hypot(randX - player.x, randY - player.y);
-                    if(distToPlayer > 70) {
-                        let collides = false;
-                        for(let w of walls) {
-                            if(Math.hypot(randX - w.x, randY - w.y) < w.radius + 22) collides = true;
-                        }
-                        for(let e of enemies) {
-                            if(Math.hypot(randX - e.x, randY - e.y) < e.radius + 28) collides = true;
-                        }
-                        if(!collides) {
-                            donuts.push({ x: randX, y: randY, radius: 12, collected: false });
-                            placed = true;
-                        }
-                    }
-                    attempts++;
-                }
-                if(!placed) {
-                    donuts.push({ x: 200 + i*70, y: 300 + (i%5)*80, radius: 12, collected: false });
-                }
+        class GameObject {
+            constructor(x,y,w,h){
+                this.x=x; this.y=y; this.w=w; this.h=h;
             }
-            
-            // Враги (бродят, при касании отбрасывают и снимают очки, но не смертельно)
-            enemies = [
-                { x: 800, y: 500, radius: 26, speed: 1.2, angle: 0, color: "#6c8b7c", name: "imposter" },
-                { x: 1500, y: 1200, radius: 28, speed: 1.4, angle: 0.5, color: "#5f7b6e", name: "imposter" },
-                { x: 1900, y: 400, radius: 24, speed: 1.5, angle: 2.2, color: "#4f6a5e", name: "imposter" },
-                { x: 500, y: 1400, radius: 27, speed: 1.1, angle: 3.9, color: "#708d7c", name: "imposter" },
-                { x: 2100, y: 1600, radius: 25, speed: 1.3, angle: 1.7, color: "#698b78", name: "imposter" }
-            ];
-            
-            // Стены/декор (препятствия)
-            walls = [];
-            // границы - обрабатываются отдельно, но добавим колонны и мебель в стиле "Скилд"
-            const obstacles = [
-                { x: 400, y: 300, radius: 38 }, { x: 850, y: 720, radius: 45 }, { x: 1300, y: 250, radius: 40 },
-                { x: 2000, y: 500, radius: 48 }, { x: 1750, y: 1300, radius: 42 }, { x: 620, y: 1600, radius: 44 },
-                { x: 1050, y: 1550, radius: 35 }, { x: 2250, y: 1100, radius: 50 }, { x: 300, y: 950, radius: 38 },
-                { x: 1480, y: 900, radius: 32 }, { x: 1900, y: 1700, radius: 36 }, { x: 70, y: 1720, radius: 42 },
-                { x: 2330, y: 80, radius: 44 }
-            ];
-            for(let obs of obstacles) {
-                walls.push({ x: obs.x, y: obs.y, radius: obs.radius });
-            }
+            getBounds(){ return {x:this.x, y:this.y, w:this.w, h:this.h}; }
         }
         
-        // Движение врагов (патруль)
-        function moveEnemies() {
-            for(let e of enemies) {
-                // простое блуждание с изменением направления
-                e.angle += (Math.random() - 0.5) * 0.25;
-                let dx = Math.cos(e.angle) * e.speed;
-                let dy = Math.sin(e.angle) * e.speed;
-                let newX = e.x + dx;
-                let newY = e.y + dy;
-                // границы мира
-                if(newX > e.radius + 20 && newX < WORLD_WIDTH - e.radius - 20) e.x = newX;
-                if(newY > e.radius + 20 && newY < WORLD_HEIGHT - e.radius - 20) e.y = newY;
-                // отталкивание от стен
-                for(let w of walls) {
-                    let dist = Math.hypot(e.x - w.x, e.y - w.y);
-                    let minDist = e.radius + w.radius;
-                    if(dist < minDist) {
-                        let angle = Math.atan2(e.y - w.y, e.x - w.x);
-                        let overlap = minDist - dist;
-                        e.x += Math.cos(angle) * overlap;
-                        e.y += Math.sin(angle) * overlap;
-                        // немного меняем угол
-                        e.angle += (Math.random() - 0.5) * 1.2;
-                    }
+        class Player extends GameObject {
+            constructor(x,y){
+                super(x,y,40,40);
+                this.speed = 4;
+                this.battery = 100;
+                this.maxBattery = 100;
+                this.megaCharge = false;
+                this.shootCooldown = 0;
+                this.dir = {x:0,y:0};
+                this.animFrame = 0;
+            }
+            update(){
+                if(!this.megaCharge && this.battery > 0){
+                    let drain = (Math.abs(this.dir.x)+Math.abs(this.dir.y)) * 0.3;
+                    this.battery = Math.max(0, this.battery - drain);
                 }
-                // отталкивание от других врагов
-                for(let other of enemies) {
-                    if(other === e) continue;
-                    let distE = Math.hypot(e.x - other.x, e.y - other.y);
-                    let minE = e.radius + other.radius;
-                    if(distE < minE) {
-                        let angleE = Math.atan2(e.y - other.y, e.x - other.x);
-                        let push = minE - distE;
-                        e.x += Math.cos(angleE) * push * 0.6;
-                        e.y += Math.sin(angleE) * push * 0.6;
-                    }
-                }
-                // небольшая корректировка границ повторно
-                e.x = Math.min(Math.max(e.x, e.radius + 10), WORLD_WIDTH - e.radius - 10);
-                e.y = Math.min(Math.max(e.y, e.radius + 10), WORLD_HEIGHT - e.radius - 10);
+                if(!this.megaCharge && this.battery <= 0) return false; // dead
+                let moveSpeed = this.speed;
+                if(!this.megaCharge && this.battery < 30) moveSpeed *= 0.4;
+                this.x += this.dir.x * moveSpeed;
+                this.y += this.dir.y * moveSpeed;
+                // границы карты
+                this.x = Math.max(50, Math.min(game.mapWidth-50, this.x));
+                this.y = Math.max(50, Math.min(game.mapHeight-50, this.y));
+                if(this.shootCooldown > 0) this.shootCooldown--;
+                this.animFrame++;
+                return true;
             }
-        }
-        
-        // Обновление игрока, столкновения, сбор пончиков
-        function updatePlayer() {
-            if(!gameRunning) return;
-            let moveX = 0, moveY = 0;
-            if(keys.ArrowUp || keys.w) moveY -= 1;
-            if(keys.ArrowDown || keys.s) moveY += 1;
-            if(keys.ArrowLeft || keys.a) moveX -= 1;
-            if(keys.ArrowRight || keys.d) moveX += 1;
-            
-            if(moveX !== 0 || moveY !== 0) {
-                let len = Math.hypot(moveX, moveY);
-                moveX = moveX / len;
-                moveY = moveY / len;
-                // угол для визуального поворота (глазок)
-                player.angle = Math.atan2(moveY, moveX);
-            }
-            
-            let newX = player.x + moveX * player.speed;
-            let newY = player.y + moveY * player.speed;
-            
-            // границы мира
-            if(newX > player.radius + 12 && newX < WORLD_WIDTH - player.radius - 12) player.x = newX;
-            if(newY > player.radius + 12 && newY < WORLD_HEIGHT - player.radius - 12) player.y = newY;
-            
-            // столкновения со стенами
-            for(let w of walls) {
-                let dist = Math.hypot(player.x - w.x, player.y - w.y);
-                let minDist = player.radius + w.radius;
-                if(dist < minDist) {
-                    let angle = Math.atan2(player.y - w.y, player.x - w.x);
-                    let overlap = minDist - dist;
-                    player.x += Math.cos(angle) * overlap;
-                    player.y += Math.sin(angle) * overlap;
-                }
-            }
-            
-            // столкновение с врагами - отбрасывание и потеря очка
-            for(let e of enemies) {
-                let distToEnemy = Math.hypot(player.x - e.x, player.y - e.y);
-                let threshold = player.radius + e.radius;
-                if(distToEnemy < threshold) {
-                    // отброс назад
-                    let angleAway = Math.atan2(player.y - e.y, player.x - e.x);
-                    let pushForce = 22;
-                    player.x += Math.cos(angleAway) * pushForce;
-                    player.y += Math.sin(angleAway) * pushForce;
-                    // штраф: теряем одно очко, но не ниже нуля
-                    if(score > 0) {
-                        score = Math.max(0, score - 1);
-                        updateScoreUI();
-                    } else if(score === 0) {
-                        // легкий визуальный эффект
-                    }
-                    // дополнительное смещение границ
-                    player.x = Math.min(Math.max(player.x, player.radius + 8), WORLD_WIDTH - player.radius - 8);
-                    player.y = Math.min(Math.max(player.y, player.radius + 8), WORLD_HEIGHT - player.radius - 8);
-                    break;
-                }
-            }
-            
-            // сбор пончиков
-            for(let i = 0; i < donuts.length; i++) {
-                let d = donuts[i];
-                if(!d.collected) {
-                    let distDonut = Math.hypot(player.x - d.x, player.y - d.y);
-                    if(distDonut < player.radius + d.radius) {
-                        d.collected = true;
-                        score++;
-                        updateScoreUI();
-                        // проверка победы
-                        if(score >= 10) {
-                            gameRunning = false;
-                        }
-                    }
-                }
-            }
-        }
-        
-        function updateScoreUI() {
-            document.getElementById('scoreValue').innerText = score;
-        }
-        
-        // Камера следует за игроком
-        function updateCamera() {
-            let targetCamX = player.x - canvas.width/2;
-            let targetCamY = player.y - canvas.height/2;
-            targetCamX = Math.min(Math.max(targetCamX, 0), WORLD_WIDTH - canvas.width);
-            targetCamY = Math.min(Math.max(targetCamY, 0), WORLD_HEIGHT - canvas.height);
-            camera.x = targetCamX;
-            camera.y = targetCamY;
-        }
-        
-        // ---------- ОТРИСОВКА (Among As стиль) ----------
-        function drawBackground() {
-            // пол
-            ctx.fillStyle = "#2d554b";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // клетчатый паттерн пола (космос/корабль)
-            ctx.strokeStyle = "#3f6d60";
-            ctx.lineWidth = 1;
-            let step = 50;
-            let startX = Math.floor(camera.x / step) * step - camera.x;
-            let startY = Math.floor(camera.y / step) * step - camera.y;
-            for(let x = startX; x < canvas.width; x += step) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            for(let y = startY; y < canvas.height; y += step) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-        }
-        
-        function drawWalls() {
-            for(let w of walls) {
-                let screenX = w.x - camera.x;
-                let screenY = w.y - camera.y;
-                ctx.save();
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = "black";
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, w.radius, 0, Math.PI*2);
-                ctx.fillStyle = "#457061";
-                ctx.fill();
-                ctx.fillStyle = "#2c4e43";
-                ctx.beginPath();
-                ctx.arc(screenX-3, screenY-3, w.radius-6, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillStyle = "#deb887";
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, w.radius-10, 0, Math.PI*2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-        
-        function drawDonuts() {
-            for(let d of donuts) {
-                if(d.collected) continue;
-                let screenX = d.x - camera.x;
-                let screenY = d.y - camera.y;
-                ctx.save();
-                ctx.shadowBlur = 6;
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, d.radius, 0, Math.PI*2);
-                ctx.fillStyle = "#f7b05e";
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, d.radius-4, 0, Math.PI*2);
-                ctx.fillStyle = "#b5651e";
-                ctx.fill();
-                ctx.fillStyle = "#ffd58c";
-                for(let i=0;i<8;i++) {
-                    let angleSpr = i * Math.PI*2/8;
-                    let sx = screenX + Math.cos(angleSpr) * (d.radius-3);
-                    let sy = screenY + Math.sin(angleSpr) * (d.radius-3);
+            draw(ctx, camera){
+                let screen = {x: this.x - camera.x, y: this.y - camera.y};
+                ctx.fillStyle = "#55aaff";
+                ctx.shadowBlur = 0;
+                ctx.fillRect(screen.x-20, screen.y-20, 40, 40);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "20px monospace";
+                ctx.fillText("B-52", screen.x-15, screen.y-25);
+                // анимация шагов
+                if(Math.abs(this.dir.x)+Math.abs(this.dir.y) > 0.1){
+                    ctx.fillStyle = "#ffaa44";
                     ctx.beginPath();
-                    ctx.arc(sx, sy, 2.5, 0, Math.PI*2);
+                    ctx.arc(screen.x + (this.animFrame%10<5 ? -12 : 12), screen.y+15, 5, 0, Math.PI*2);
                     ctx.fill();
                 }
-                ctx.restore();
+            }
+            shoot(){
+                if(this.shootCooldown > 0) return false;
+                this.shootCooldown = 15;
+                return true;
             }
         }
         
-        // среди нас стиль - герой с рюкзаком и забралом
-        function drawPlayer() {
-            let px = player.x - camera.x;
-            let py = player.y - camera.y;
-            ctx.save();
-            ctx.shadowBlur = 6;
-            // тело
-            ctx.beginPath();
-            ctx.ellipse(px, py, player.radius, player.radius*1.1, 0, 0, Math.PI*2);
-            ctx.fillStyle = player.color;
-            ctx.fill();
-            ctx.fillStyle = "#b71c1c";
-            ctx.beginPath();
-            ctx.ellipse(px-3, py-3, player.radius-7, player.radius-5, 0, 0, Math.PI*2);
-            ctx.fill();
-            // рюкзак
-            ctx.fillStyle = "#9a2e2e";
-            ctx.beginPath();
-            ctx.rect(px+12, py-8, 12, 22);
-            ctx.fill();
-            // шлем/стекло
-            ctx.beginPath();
-            ctx.arc(px-2, py-9, 12, 0, Math.PI*2);
-            ctx.fillStyle = "#c0e0ffcc";
-            ctx.fill();
-            ctx.fillStyle = "#ffffff";
-            ctx.beginPath();
-            ctx.arc(px-7, py-13, 3, 0, Math.PI*2);
-            ctx.fill();
-            // глазок (направление)
-            let eyeX = px - 3 + Math.cos(player.angle) * 6;
-            let eyeY = py - 10 + Math.sin(player.angle) * 5;
-            ctx.fillStyle = "#000000";
-            ctx.beginPath();
-            ctx.arc(eyeX, eyeY, 2.5, 0, Math.PI*2);
-            ctx.fill();
-            ctx.fillStyle = "white";
-            ctx.beginPath();
-            ctx.arc(eyeX-1, eyeY-1, 1, 0, Math.PI*2);
-            ctx.fill();
-            ctx.restore();
-        }
-        
-        function drawEnemies() {
-            for(let e of enemies) {
-                let ex = e.x - camera.x;
-                let ey = e.y - camera.y;
-                ctx.save();
-                ctx.shadowBlur = 5;
-                ctx.beginPath();
-                ctx.ellipse(ex, ey, e.radius, e.radius*0.9, 0, 0, Math.PI*2);
-                ctx.fillStyle = e.color;
-                ctx.fill();
-                ctx.fillStyle = "#3e5a4f";
-                ctx.beginPath();
-                ctx.ellipse(ex-3, ey-2, e.radius-8, e.radius-7, 0, 0, Math.PI*2);
-                ctx.fill();
-                // злобные глаза
-                ctx.fillStyle = "#ffcc88";
-                ctx.beginPath();
-                ctx.arc(ex-8, ey-7, 4, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillStyle = "#aa2e1e";
-                ctx.beginPath();
-                ctx.arc(ex+4, ey-8, 4, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillStyle = "black";
-                ctx.beginPath();
-                ctx.arc(ex-9, ey-9, 2, 0, Math.PI*2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(ex+3, ey-10, 2, 0, Math.PI*2);
-                ctx.fill();
-                ctx.restore();
+        class Amigo extends GameObject {
+            constructor(x,y){
+                super(x,y,40,40);
+                this.speed = 2.2;
+                this.waypoints = [];
+                this.currentWp = 0;
+                this.caught = false;
+                this.speedBoost = 1.0;
+                this.hits = 0;
+                // маршрут к офису (координаты примерные)
+                this.waypoints = [
+                    {x: 800, y: 500}, {x: 1500, y: 800}, {x: 2200, y: 1200},
+                    {x: 3000, y: 1800}, {x: 3600, y: 2200}, {x: 3800, y: 2600}
+                ];
+            }
+            update(){
+                if(this.caught) return;
+                let target = this.waypoints[this.currentWp];
+                let dx = target.x - this.x;
+                let dy = target.y - this.y;
+                let dist = Math.hypot(dx,dy);
+                if(dist < 20){
+                    this.currentWp = (this.currentWp+1) % this.waypoints.length;
+                    if(this.currentWp === 0) this.caught = true; // дошел до офиса
+                    return;
+                }
+                let step = this.speed * this.speedBoost;
+                let angle = Math.atan2(dy,dx);
+                this.x += Math.cos(angle) * step;
+                this.y += Math.sin(angle) * step;
+                this.x = Math.max(30, Math.min(game.mapWidth-30, this.x));
+                this.y = Math.max(30, Math.min(game.mapHeight-30, this.y));
+            }
+            draw(ctx, camera){
+                if(this.caught) return;
+                let screen = {x: this.x - camera.x, y: this.y - camera.y};
+                ctx.fillStyle = "#dd6644";
+                ctx.fillRect(screen.x-20, screen.y-20, 40, 40);
+                ctx.fillStyle = "#ffcc00";
+                ctx.font = "16px monospace";
+                ctx.fillText("🤠 Amigo", screen.x-22, screen.y-28);
+                // шляпа
+                ctx.fillStyle = "#aa6644";
+                ctx.fillRect(screen.x-25, screen.y-35, 50, 12);
+            }
+            hit(){
+                this.hits++;
+                this.speedBoost = Math.min(2.5, 1.0 + this.hits * 0.2);
+                return true; // падает шарик
             }
         }
         
-        function drawUIeffects() {
-            if(!gameRunning && score >= 10) {
-                ctx.font = "bold 42 monospace";
-                ctx.fillStyle = "#ffec80";
-                ctx.shadowBlur = 0;
-                ctx.textAlign = "center";
-                ctx.fillText("✨ ПОБЕДА! ✨", canvas.width/2, canvas.height/2 - 50);
-                ctx.font = "24px monospace";
-                ctx.fillStyle = "#cae3d6";
-                ctx.fillText("Нажми «Новая игра»", canvas.width/2, canvas.height/2 + 40);
-            } else if(!gameRunning && score < 10) {
-                // не случится, но на всякий
+        class LampPost extends GameObject {
+            constructor(x,y, isSpecial=false){
+                super(x,y,30,50);
+                this.isSpecial = isSpecial; // трансформаторная будка
+                this.charged = false;
             }
-            // счет на экране в углу
-            ctx.font = "bold 22 'Segoe UI'";
-            ctx.fillStyle = "#f9f3cf";
-            ctx.shadowBlur = 2;
-            ctx.textAlign = "left";
-            ctx.fillText("🍩 x"+score, 18, 48);
+            draw(ctx, camera){
+                let screen = {x: this.x - camera.x, y: this.y - camera.y};
+                if(this.isSpecial){
+                    ctx.fillStyle = "#8b4513";
+                    ctx.fillRect(screen.x-20, screen.y-30, 40, 50);
+                    ctx.fillStyle = "#ffaa00";
+                    ctx.font = "bold 20px monospace";
+                    ctx.fillText("⚡", screen.x-8, screen.y-10);
+                    if(!this.charged){
+                        ctx.fillStyle = "#aa44ff";
+                        ctx.fillRect(screen.x-25, screen.y-40, 50, 10);
+                    } else {
+                        ctx.fillStyle = "gold";
+                        ctx.fillRect(screen.x-25, screen.y-40, 50, 10);
+                    }
+                } else {
+                    ctx.fillStyle = "#555";
+                    ctx.fillRect(screen.x-10, screen.y-30, 20, 50);
+                    ctx.fillStyle = "#cc6600";
+                    ctx.fillRect(screen.x-15, screen.y-45, 30, 15);
+                }
+            }
         }
         
-        // цикл отрисовки и обновления
-        function gameLoop() {
-            if(gameRunning) {
-                moveEnemies();
-                updatePlayer();
-                updateCamera();
+        class Orb {
+            constructor(x,y){
+                this.x=x; this.y=y; this.life=120;
             }
-            drawBackground();
-            drawWalls();
-            drawDonuts();
-            drawEnemies();
-            drawPlayer();
-            drawUIeffects();
+            update(){ this.life--; return this.life>0; }
+            draw(ctx, camera){
+                let screen = {x: this.x - camera.x, y: this.y - camera.y};
+                ctx.fillStyle = `rgba(255,200,100,${this.life/120})`;
+                ctx.beginPath();
+                ctx.arc(screen.x, screen.y, 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+        
+        class Game {
+            constructor(){
+                this.mapWidth = 4000;
+                this.mapHeight = 3000;
+                this.player = new Player(200,200);
+                this.amigo = new Amigo(300,250);
+                this.lamps = [
+                    new LampPost(600,500), new LampPost(1200,900), new LampPost(2100,1500),
+                    new LampPost(3600,2500, true) // будка у офиса
+                ];
+                this.orbs = [];
+                this.camera = {x:0, y:0};
+                this.level = 1; // 1 - город, 2 - офис
+                this.showMessage = "";
+                this.messageTimer = 0;
+                this.officeDoorOpen = false;
+                this.buttons = []; // для офиса
+                this.buttonOrder = [];
+                this.floppyTaken = false;
+                this.duelActive = false;
+                this.duelScore = 0;
+                this.duelBarPos = 150;
+                this.duelBarDir = 1;
+                this.duelZone = {min:120, max:180};
+            }
+            
+            showMsg(txt, duration=100){
+                this.showMessage = txt;
+                this.messageTimer = duration;
+                messageDiv.innerText = txt;
+                messageDiv.style.display = "block";
+            }
+            
+            update(){
+                if(this.messageTimer > 0){
+                    this.messageTimer--;
+                    if(this.messageTimer===0) messageDiv.style.display="none";
+                }
+                if(this.duelActive){
+                    this.updateDuel();
+                    return;
+                }
+                if(this.level === 1){
+                    let alive = this.player.update();
+                    if(!alive){
+                        this.showMsg("⚡ РАЗРЯДКА! Игра перезапущена ⚡", 150);
+                        setTimeout(()=> location.reload(), 1500);
+                        return;
+                    }
+                    this.amigo.update();
+                    // проверка зарядки у столбов
+                    for(let l of this.lamps){
+                        let dist = Math.hypot(this.player.x - l.x, this.player.y - l.y);
+                        if(dist < 50){
+                            if(l.isSpecial && !l.charged && this.level===1){
+                                l.charged = true;
+                                this.player.megaCharge = true;
+                                this.player.battery = 999;
+                                this.showMsg("💥 MEGA CHARGE! Пушка перезаряжена! 💥", 120);
+                                // показываем comic8
+                                this.showComicInterlude(8);
+                            } else if(!l.isSpecial && !this.player.megaCharge){
+                                this.player.battery = Math.min(this.player.maxBattery, this.player.battery+30);
+                                this.showMsg("🔋 Зарядка...", 20);
+                            }
+                        }
+                    }
+                    // проверка приближения к офису без зарядки
+                    let officeDist = Math.hypot(this.player.x - 3800, this.player.y - 2600);
+                    if(officeDist < 150 && !this.player.megaCharge){
+                        this.showMsg("⚠️ Нужно зарядить пушку у будки! ⚠️", 80);
+                        this.player.x = 3600; this.player.y = 2500;
+                    }
+                    if(this.amigo.caught && !this.duelActive){
+                        this.level = 2;
+                        this.initOfficeLevel();
+                    }
+                    // стрельба и шарики
+                    for(let i=0;i<this.orbs.length;i++){
+                        if(!this.orbs[i].update()) this.orbs.splice(i,1);
+                    }
+                } else if(this.level === 2){
+                    this.updateOffice();
+                }
+                // камера
+                this.camera.x = this.player.x - canvas.width/2;
+                this.camera.y = this.player.y - canvas.height/2;
+                this.camera.x = Math.max(0, Math.min(this.mapWidth-canvas.width, this.camera.x));
+                this.camera.y = Math.max(0, Math.min(this.mapHeight-canvas.height, this.camera.y));
+            }
+            
+            showComicInterlude(num){
+                comicContainer.style.display = 'flex';
+                canvas.style.display = 'none';
+                messageDiv.style.display = 'none';
+                comicImg.src = `comic${num}.png`;
+                let btn = document.createElement('button');
+                btn.innerText = "Продолжить →";
+                btn.style.marginTop = "20px";
+                btn.onclick = () => {
+                    comicContainer.style.display = 'none';
+                    canvas.style.display = 'block';
+                    messageDiv.style.display = 'block';
+                    btn.remove();
+                };
+                comicContainer.appendChild(btn);
+            }
+            
+            initOfficeLevel(){
+                this.mapWidth = 2400;
+                this.mapHeight = 1800;
+                this.player.x = 200;
+                this.player.y = 1600;
+                this.player.battery = 999;
+                this.officeDoorOpen = false;
+                this.floppyTaken = false;
+                this.buttons = [
+                    {x:800, y:600, color:"red", pressed:false, order:0},
+                    {x:1100, y:600, color:"blue", pressed:false, order:1},
+                    {x:1400, y:600, color:"yellow", pressed:false, order:2}
+                ];
+                this.buttonOrder = [];
+                this.showMsg("Найди комнату с кнопками!", 100);
+            }
+            
+            updateOffice(){
+                this.player.update();
+                // проверка кнопок
+                for(let btn of this.buttons){
+                    let dist = Math.hypot(this.player.x - btn.x, this.player.y - btn.y);
+                    if(dist < 50 && !btn.pressed){
+                        btn.pressed = true;
+                        this.buttonOrder.push(btn.color);
+                        // проверка последовательности
+                        let correct = ["red","blue","yellow"];
+                        let ok = true;
+                        for(let i=0;i<this.buttonOrder.length;i++){
+                            if(this.buttonOrder[i] !== correct[i]) ok=false;
+                        }
+                        if(!ok){
+                            for(let b of this.buttons) b.pressed=false;
+                            this.buttonOrder = [];
+                            this.showMsg("❌ Неправильно! Начни заново", 60);
+                        } else if(this.buttonOrder.length === 3){
+                            this.officeDoorOpen = true;
+                            this.showMsg("🚪 Дверь открылась! Иди к столу с флешкой", 100);
+                        }
+                        break;
+                    }
+                }
+                // флешка
+                let flashDrivePos = {x:1800, y:800};
+                let distToFlash = Math.hypot(this.player.x - flashDrivePos.x, this.player.y - flashDrivePos.y);
+                if(!this.floppyTaken && this.officeDoorOpen && distToFlash < 40){
+                    this.showMsg("📀 Нажми [E] / кнопку ВЗЯТЬ", 10);
+                    if((typeof window.triggerPickup !== 'undefined' && window.triggerPickup) || (typeof takeFloppy !== 'undefined' && takeFloppy)){
+                        this.floppyTaken = true;
+                        this.startDuel();
+                    }
+                }
+                // рисовать дверь
+            }
+            
+            startDuel(){
+                this.duelActive = true;
+                this.duelScore = 0;
+                this.showMsg("Дуэль! Попади 5 раз подряд в центр!", 200);
+            }
+            
+            updateDuel(){
+                this.duelBarPos += this.duelBarDir * 5;
+                if(this.duelBarPos > 290) { this.duelBarPos = 290; this.duelBarDir = -1; }
+                if(this.duelBarPos < 10) { this.duelBarPos = 10; this.duelBarDir = 1; }
+            }
+            
+            duelShoot(){
+                if(!this.duelActive) return false;
+                let inZone = (this.duelBarPos >= 120 && this.duelBarPos <= 180);
+                if(inZone){
+                    this.duelScore++;
+                    if(this.duelScore >= 5){
+                        this.duelActive = false;
+                        this.showComicInterlude(9);
+                        setTimeout(()=> location.reload(), 3000);
+                    } else {
+                        this.showMsg(`🎯 Попадание! ${this.duelScore}/5`, 40);
+                    }
+                } else {
+                    this.duelScore = 0;
+                    this.showMsg("❌ Промах! Начни заново", 40);
+                }
+                return true;
+            }
+            
+            draw(ctx){
+                ctx.fillStyle = "#2a5a2a";
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+                // препятствия (дома - простые квадраты)
+                for(let i=0;i<30;i++){
+                    ctx.fillStyle = "#5a3a2a";
+                    ctx.fillRect(300+i*150 - this.camera.x, 400 - this.camera.y, 80,80);
+                }
+                for(let l of this.lamps) l.draw(ctx, this.camera);
+                for(let o of this.orbs) o.draw(ctx, this.camera);
+                this.amigo.draw(ctx, this.camera);
+                this.player.draw(ctx, this.camera);
+                if(this.level===2){
+                    for(let btn of this.buttons){
+                        let screen = {x: btn.x - this.camera.x, y: btn.y - this.camera.y};
+                        ctx.fillStyle = btn.color;
+                        ctx.beginPath();
+                        ctx.arc(screen.x, screen.y, 20, 0, Math.PI*2);
+                        ctx.fill();
+                        if(btn.pressed){
+                            ctx.fillStyle = "gold";
+                            ctx.beginPath();
+                            ctx.arc(screen.x, screen.y, 28, 0, Math.PI*2);
+                            ctx.fill();
+                        }
+                    }
+                    if(this.officeDoorOpen){
+                        ctx.fillStyle = "#886644";
+                        ctx.fillRect(1700 - this.camera.x, 700 - this.camera.y, 80, 120);
+                        ctx.fillStyle = "#ffaa66";
+                        ctx.fillRect(1750 - this.camera.x, 750 - this.camera.y, 30, 30);
+                    }
+                    if(!this.floppyTaken && this.officeDoorOpen){
+                        ctx.fillStyle = "silver";
+                        ctx.fillRect(1800 - this.camera.x, 800 - this.camera.y, 20, 15);
+                    }
+                }
+                // шкала батареи
+                ctx.fillStyle = "#333";
+                ctx.fillRect(20,20,220,25);
+                let percent = this.player.megaCharge ? 1 : this.player.battery/100;
+                ctx.fillStyle = this.player.megaCharge ? "gold" : (this.player.battery<30 ? "red" : "lime");
+                ctx.fillRect(20,20,220*percent,25);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 16px monospace";
+                ctx.fillText(this.player.megaCharge ? "⚡ MEGA CHARGE ⚡" : "ЗАРЯД", 25,42);
+                
+                // дуэль полоска
+                if(this.duelActive){
+                    ctx.fillStyle = "black";
+                    ctx.fillRect(canvas.width/2-150, canvas.height-100, 300, 40);
+                    ctx.fillStyle = "gold";
+                    ctx.fillRect(canvas.width/2-150+this.duelBarPos-10, canvas.height-100, 20, 40);
+                    ctx.fillStyle = "#00ff00";
+                    ctx.fillRect(canvas.width/2-30, canvas.height-100, 60, 40);
+                    ctx.fillStyle = "white";
+                    ctx.fillText("👉 ЦЕЛЬ 👈", canvas.width/2-40, canvas.height-110);
+                }
+            }
+        }
+        
+        // управление
+        let keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, w:false, s:false, a:false, d:false };
+        function handleInput(){
+            if(!game) return;
+            let dx=0, dy=0;
+            if(keys.ArrowUp||keys.w) dy-=1;
+            if(keys.ArrowDown||keys.s) dy+=1;
+            if(keys.ArrowLeft||keys.a) dx-=1;
+            if(keys.ArrowRight||keys.d) dx+=1;
+            let len = Math.hypot(dx,dy);
+            if(len>0){ dx/=len; dy/=len; }
+            game.player.dir = {x:dx, y:dy};
+        }
+        
+        window.addEventListener('keydown', (e)=>{
+            let k = e.key;
+            if(keys.hasOwnProperty(k)) keys[k]=true;
+            if(k===' ' || k==='Space'){
+                e.preventDefault();
+                if(game && game.duelActive) game.duelShoot();
+                else if(game && game.player.shoot()){
+                    let angle = Math.atan2(game.player.dir.y, game.player.dir.x);
+                    let hit = Math.hypot(game.player.x - game.amigo.x, game.player.y - game.amigo.y) < 70;
+                    if(hit && !game.amigo.caught){
+                        game.amigo.hit();
+                        game.orbs.push(new Orb(game.amigo.x, game.amigo.y));
+                        game.showMsg("🎩 Шарик упал! Следуй за ними!", 40);
+                    }
+                }
+            }
+            if(k==='e' || k==='E'){
+                if(game && game.level===2 && !game.floppyTaken && game.officeDoorOpen){
+                    let flashPos = {x:1800,y:800};
+                    let dist = Math.hypot(game.player.x - flashPos.x, game.player.y - flashPos.y);
+                    if(dist<50){
+                        game.floppyTaken=true;
+                        game.startDuel();
+                    }
+                }
+            }
+        });
+        window.addEventListener('keyup', (e)=>{ if(keys.hasOwnProperty(e.key)) keys[e.key]=false; });
+        
+        // телефон: джойстик статический
+        let touchActive = false, touchDir = {x:0,y:0};
+        canvas.addEventListener('touchstart', (e)=>{
+            e.preventDefault();
+            let rect = canvas.getBoundingClientRect();
+            let scaleX = canvas.width/rect.width;
+            let scaleY = canvas.height/rect.height;
+            for(let t of e.touches){
+                let canvasX = (t.clientX - rect.left)*scaleX;
+                let canvasY = (t.clientY - rect.top)*scaleY;
+                if(canvasX < 200 && canvasY > canvas.height-200){
+                    touchActive = true;
+                    let dx = canvasX - 100;
+                    let dy = canvasY - (canvas.height-150);
+                    let len = Math.hypot(dx,dy);
+                    if(len>0){ touchDir.x = dx/len; touchDir.y = dy/len; }
+                    else touchDir = {x:0,y:0};
+                }
+                if(canvasX > canvas.width-100 && canvasY > canvas.height-100){
+                    if(game && game.duelActive) game.duelShoot();
+                    else if(game && game.player.shoot()){
+                        let angle = Math.atan2(game.player.dir.y, game.player.dir.x);
+                        let hit = Math.hypot(game.player.x - game.amigo.x, game.player.y - game.amigo.y) < 70;
+                        if(hit && !game.amigo.caught){
+                            game.amigo.hit();
+                            game.orbs.push(new Orb(game.amigo.x, game.amigo.y));
+                        }
+                    }
+                }
+            }
+        });
+        canvas.addEventListener('touchmove', (e)=>{
+            e.preventDefault();
+            let rect = canvas.getBoundingClientRect();
+            let scaleX = canvas.width/rect.width;
+            let scaleY = canvas.height/rect.height;
+            for(let t of e.touches){
+                let canvasX = (t.clientX - rect.left)*scaleX;
+                let canvasY = (t.clientY - rect.top)*scaleY;
+                if(touchActive){
+                    let dx = canvasX - 100;
+                    let dy = canvasY - (canvas.height-150);
+                    let len = Math.hypot(dx,dy);
+                    if(len>0){ touchDir.x = dx/len; touchDir.y = dy/len; }
+                    else touchDir = {x:0,y:0};
+                }
+            }
+        });
+        canvas.addEventListener('touchend', ()=>{ touchActive=false; touchDir={x:0,y:0}; });
+        
+        function gameLoop(){
+            if(!game) return;
+            handleInput();
+            if(touchActive){
+                game.player.dir = touchDir;
+            }
+            game.update();
+            game.draw(ctx);
             requestAnimationFrame(gameLoop);
         }
         
-        // обработка клавиш
-        function handleKeyDown(e) {
-            let key = e.key;
-            if(keys.hasOwnProperty(key)) keys[key] = true;
-            // стрелки, wasd
-            if(key === 'ArrowUp') keys.ArrowUp = true;
-            if(key === 'ArrowDown') keys.ArrowDown = true;
-            if(key === 'ArrowLeft') keys.ArrowLeft = true;
-            if(key === 'ArrowRight') keys.ArrowRight = true;
-            if(key === 'w') keys.w = true;
-            if(key === 's') keys.s = true;
-            if(key === 'a') keys.a = true;
-            if(key === 'd') keys.d = true;
-        }
-        
-        function handleKeyUp(e) {
-            let key = e.key;
-            if(keys.hasOwnProperty(key)) keys[key] = false;
-            if(key === 'ArrowUp') keys.ArrowUp = false;
-            if(key === 'ArrowDown') keys.ArrowDown = false;
-            if(key === 'ArrowLeft') keys.ArrowLeft = false;
-            if(key === 'ArrowRight') keys.ArrowRight = false;
-            if(key === 'w') keys.w = false;
-            if(key === 's') keys.s = false;
-            if(key === 'a') keys.a = false;
-            if(key === 'd') keys.d = false;
-        }
-        
-        function restartGame() {
-            initGame();
-            gameRunning = true;
-            updateScoreUI();
-        }
-        
-        // мобильное управление
-        function setupMobile() {
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            const mobileDiv = document.getElementById('mobileControls');
-            if(isMobile) {
-                mobileDiv.style.display = 'flex';
-                document.getElementById('btnUp').addEventListener('click', () => { keys.ArrowUp = true; setTimeout(()=> keys.ArrowUp=false, 120); });
-                document.getElementById('btnDown').addEventListener('click', () => { keys.ArrowDown = true; setTimeout(()=> keys.ArrowDown=false, 120); });
-                document.getElementById('btnLeft').addEventListener('click', () => { keys.ArrowLeft = true; setTimeout(()=> keys.ArrowLeft=false, 120); });
-                document.getElementById('btnRight').addEventListener('click', () => { keys.ArrowRight = true; setTimeout(()=> keys.ArrowRight=false, 120); });
-                // также поддержка wasd через кнопки, продублируем
-                document.getElementById('btnUp').addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowUp = true; });
-                document.getElementById('btnUp').addEventListener('touchend', () => { keys.ArrowUp = false; });
-                document.getElementById('btnDown').addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowDown = true; });
-                document.getElementById('btnDown').addEventListener('touchend', () => { keys.ArrowDown = false; });
-                document.getElementById('btnLeft').addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowLeft = true; });
-                document.getElementById('btnLeft').addEventListener('touchend', () => { keys.ArrowLeft = false; });
-                document.getElementById('btnRight').addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowRight = true; });
-                document.getElementById('btnRight').addEventListener('touchend', () => { keys.ArrowRight = false; });
-            } else {
-                mobileDiv.style.display = 'none';
-            }
-        }
-        
-        // инициализация
-        window.addEventListener('load', () => {
-            initGame();
-            updateCamera();
-            setupMobile();
-            document.getElementById('resetGameBtn').addEventListener('click', () => { restartGame(); });
-            window.addEventListener('keydown', handleKeyDown);
-            window.addEventListener('keyup', handleKeyUp);
+        function initGame(){
+            game = new Game();
             gameLoop();
-        });
+        }
     })();
 </script>
 </body>
