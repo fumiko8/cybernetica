@@ -150,17 +150,17 @@
             constructor(x,y){
                 super(x,y,40,40);
                 this.speed = 4;
-                this.battery = 100;
-                this.maxBattery = 100;
+                this.battery = 1000000;
+                this.maxBattery = 10000000;
                 this.megaCharge = false;
                 this.shootCooldown = 0;
                 this.dir = {x:0,y:0};
                 this.animFrame = 0;
             }
-            /*update(){
+            update(){
                 if(!this.megaCharge && this.battery > 0){
                     let drain = (Math.abs(this.dir.x)+Math.abs(this.dir.y)) * 0.3;
-                    this.battery = Math.max(0, this.battery - drain);*/
+                    this.battery = Math.max(0, this.battery - drain);
                 }
                 if(!this.megaCharge && this.battery <= 0) return false; // dead
                 let moveSpeed = this.speed;
