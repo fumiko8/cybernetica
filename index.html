@@ -157,10 +157,10 @@
                 this.dir = {x:0,y:0};
                 this.animFrame = 0;
             }
-            update(){
+            /*update(){
                 if(!this.megaCharge && this.battery > 0){
                     let drain = (Math.abs(this.dir.x)+Math.abs(this.dir.y)) * 0.3;
-                    this.battery = Math.max(0, this.battery - drain);
+                    this.battery = Math.max(0, this.battery - drain);*/
                 }
                 if(!this.megaCharge && this.battery <= 0) return false; // dead
                 let moveSpeed = this.speed;
